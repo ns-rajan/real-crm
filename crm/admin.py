@@ -42,9 +42,10 @@ from crm.site.paymentadmin import PaymentAdmin
 from crm.site.shipmentadmin import ShipmentAdmin
 from crm.site.crmadminsite import crm_site
 from crm.utils.admfilters import ByDepartmentFilter
+from crm.models import Contact, ContactDocument
+from django.utils.safestring import mark_safe
 
 admin.site.empty_value_display = '(None)'
-
 
 class MyModelAdmin(admin.ModelAdmin):
     list_filter = (ByDepartmentFilter,)
@@ -133,8 +134,8 @@ class CompanyAdmin(companyadmin.CompanyAdmin):
 class DealAdmin(dealadmin.DealAdmin):
     list_display = [
         'dynamic_name', 'next_step_name',
-        'next_step_date', 'stage', 'owner',
-        'relevant', 'active',
+        'next_step_date', 'stage', 'closing_reason', 'owner',
+        'relevant', 'active', 
         'counterparty', 'creation_date'
     ]
     raw_id_fields = (
@@ -143,6 +144,23 @@ class DealAdmin(dealadmin.DealAdmin):
     )
 
     # -- ModelAdmin methods -- #
+
+    def get_queryset(self, request):
+        # Start from the base ModelAdmin queryset to avoid extra scoping
+        qs = admin.ModelAdmin.get_queryset(self, request)
+        
+        # Superusers see everything
+        if request.user.is_superuser:
+            return qs
+            
+        # Safely extract the agency
+        profile = getattr(request.user, 'profile', getattr(request.user, 'userprofile', None))
+        agency = getattr(profile, 'agency', None) if profile else None
+        
+        # Filter by agency, or return nothing if they don't have one
+        if agency:
+            return qs.filter(agency=agency)
+        return qs.none()
 
     def get_fieldsets(self, request, obj=None):
         return (
@@ -200,9 +218,22 @@ class DealAdmin(dealadmin.DealAdmin):
             'dynamic_name', 'counterparty'
         )
 
+class ContactDocumentInline(admin.TabularInline):
+    model = ContactDocument
+    fields = ('document_type', 'file', 'preview', 'uploaded_at')
+    readonly_fields = ('uploaded_at', 'preview')
+    extra = 0
+
+    def preview(self, obj):
+        if obj.file:
+            return mark_safe(f'<img src="{obj.file.url}" width="200" style="border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"/>')
+        return ""
+
 
 class ContactAdmin(contactadmin.ContactAdmin):
-    readonly_fields = ['creation_date', 'update_date']
+    change_list_template = "admin/crm/contact/change_list.html"
+    readonly_fields = ['creation_date', 'update_date', 'consent_timestamp']
+    inlines = [ContactDocumentInline]
 
     # -- ModelAdmin methods -- #
 
@@ -216,6 +247,11 @@ class ContactAdmin(contactadmin.ContactAdmin):
                     ('disqualified', 'massmail')
                 )
             }],
+                (_('KYC & Onboarding'), {
+                    'fields': (
+                        'id_number', 'id_expiry', 'kyc_verified', 'consent_timestamp'
+                    )
+                }),
             (_('Add tags'), {
                 'fields': ('tags',)
             }),
@@ -225,6 +261,7 @@ class ContactAdmin(contactadmin.ContactAdmin):
                     'phone',
                     ('other_phone', 'mobile'),
                     ('lead_source', 'company'),
+                    'city_name',
                     'region',
                     'district',
                     'address', 'country'
@@ -311,7 +348,7 @@ class RequestAdmin(requestadmin.RequestAdmin):
         'lead',
         'contact',
         'deal',
-        'company'
+        'company',
     )
     readonly_fields = tuple()
 
@@ -333,7 +370,7 @@ class RequestAdmin(requestadmin.RequestAdmin):
                     ('country', 'city_name'),
                     ('description', 'translation'),
                     'remark',
-                    'products'
+                    'products',
                 ]
             }),
             (_('Relations'), {
@@ -353,6 +390,23 @@ class RequestAdmin(requestadmin.RequestAdmin):
                 ]
             }),
         )
+
+    def get_queryset(self, request):
+        # Start from the base ModelAdmin queryset to avoid extra scoping
+        qs = admin.ModelAdmin.get_queryset(self, request)
+        
+        # Superusers see everything
+        if request.user.is_superuser:
+            return qs
+            
+        # Safely extract the agency
+        profile = getattr(request.user, 'profile', getattr(request.user, 'userprofile', None))
+        agency = getattr(profile, 'agency', None) if profile else None
+        
+        # Filter by agency, or return nothing if they don't have one
+        if agency:
+            return qs.filter(agency=agency)
+        return qs.none()
 
 
 class StageAdmin(TranslateNameModelAdmin):
@@ -449,9 +503,9 @@ class RateAdmin(admin.ModelAdmin):
 
 admin.site.register(City, cityadmin.CityAdmin)
 admin.site.register(Company, CompanyAdmin)
+admin.site.register(Contact, ContactAdmin)
 admin.site.register(ClientType, ClientTypeAdmin)
 admin.site.register(Country, CountryAdmin)
-admin.site.register(Contact, ContactAdmin)
 admin.site.register(CrmEmail, CrmEmailAdmin)
 admin.site.register(Currency, CurrencyAdmin)
 admin.site.register(Deal, DealAdmin)
@@ -470,7 +524,7 @@ admin.site.register(Tag, tagadmin.TagAdmin)
 
 crm_site.register(City, cityadmin.CityAdmin)
 crm_site.register(Company, companyadmin.CompanyAdmin)
-crm_site.register(Contact, contactadmin.ContactAdmin)
+crm_site.register(Contact, ContactAdmin)
 crm_site.register(CrmEmail, crmemailadmin.CrmEmailAdmin)
 crm_site.register(Currency, CurrencyAdmin)
 crm_site.register(Deal, dealadmin.DealAdmin)

@@ -82,7 +82,9 @@ class Request(Base1):
         verbose_name=_("Products")
     )
     country = models.ForeignKey(
-        'Country', blank=True, null=True,
+        'locations.Country',
+        blank=True,
+        null=True,
         verbose_name=_("Country"),
         on_delete=models.SET_NULL
     )
@@ -144,6 +146,15 @@ class Request(Base1):
         verbose_name=_("Co-owner"),
         related_name="%(app_label)s_%(class)s_co_owner_related",
     )
+
+    agency = models.ForeignKey(
+        "tenants.Agency",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        verbose_name="Agency/Tenant"
+    )
+
     files = GenericRelation('common.TheFile')
 
     def clean(self):

@@ -1,0 +1,70 @@
+[
+  {
+    "model": "inventory.asset",
+    "pk": 1,
+    "fields": {
+      "name": "Gran Vía Business Center",
+      "address": "Calle Gran Vía 32, 28013 Madrid, Spain",
+      "total_sqm": 4500
+    }
+  },
+  {
+    "model": "inventory.asset",
+    "pk": 2,
+    "fields": {
+      "name": "Avenida da Liberdade Hub",
+      "address": "Av. da Liberdade 110, 1250-146 Lisboa, Portugal",
+      "total_sqm": 3200
+    }
+  },
+  {
+    "model": "inventory.space",
+    "pk": 1,
+    "fields": {
+      "asset": 1,
+      "name": "Main Building"
+    }
+  },
+  {
+    "model": "inventory.space",
+    "pk": 2,
+    "fields": {
+      "asset": 2,
+      "name": "Tower A"
+    }
+  },
+  {
+    "model": "inventory.unit",
+    "pk": 1,
+    "fields": {
+      "space": 1,
+      "name": "Floor 3 - North Wing",
+      "usable_sqm": 450
+    }
+  },
+  {
+    "model": "inventory.unit",
+    "pk": 2,
+    "fields": {
+      "space": 2,
+      "name": "Ground Floor Hub",
+      "usable_sqm": 800
+    }
+  },
+  {
+    "model": "crm.closingreason", "pk": 2,
+    "fields": { "name": "Lost to Competitor", "success_reason": false, "department": 1, "index_number": 2 }
+  },
+  {
+    "model": "crm.closingreason", "pk": 3,
+    "fields": { "name": "Price Too High", "success_reason": false, "department": 1, "index_number": 3 }
+  },
+  {
+    "model": "crm.closingreason", "pk": 4,
+    "fields": { "name": "Unresponsive / Ghosted", "success_reason": false, "department": 1, "index_number": 4 }
+  },
+  {
+    "model": "crm.closingreason", "pk": 5,
+    "fields": { "name": "Timeline Too Long", "success_reason": false, "department": 1, "index_number": 5 }
+  }
+]

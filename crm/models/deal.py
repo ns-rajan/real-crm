@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.utils.safestring import mark_safe
@@ -102,7 +104,7 @@ class Deal(Base1):
         on_delete=models.SET_NULL
     )     
     country = models.ForeignKey(
-        'Country',
+        'locations.Country',
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
@@ -183,6 +185,15 @@ class Deal(Base1):
         verbose_name=_("Co-owner"),
         related_name="%(app_label)s_%(class)s_co_owner_related",
     )
+
+    agency = models.ForeignKey(
+        "tenants.Agency",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        verbose_name="Agency/Tenant"
+    )
+
     files = GenericRelation('common.TheFile')
 
     def change_stage_data(self, date):
@@ -201,3 +212,6 @@ class Deal(Base1):
         return self.next_step
 
     next_step_name.short_description = _('Next step')
+
+
+#@receiver(post_save, sender=Deal)

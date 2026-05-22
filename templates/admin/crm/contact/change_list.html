@@ -1,0 +1,70 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    <li>
+        <a href="#" id="kyc-upload-btn" class="addlink" style="background-color: #28a745; color: white;">
+            Upload KYC ID
+        </a>
+        <input type="file" id="kyc-file-input" style="display: none;" accept="image/*,application/pdf">
+    </li>
+{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const btn = document.getElementById('kyc-upload-btn');
+            const fileInput = document.getElementById('kyc-file-input');
+
+            // 1. Click the hidden input when the button is clicked
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                fileInput.click();
+            });
+
+            // 2. Trigger the upload as soon as a file is selected
+            fileInput.addEventListener('change', function() {
+                if (this.files.length === 0) return;
+
+                const file = this.files[0];
+                const formData = new FormData();
+                
+                // Note: 'document' must match the key expected in request.FILES in your view
+                formData.append('document', file); 
+
+                // Visual feedback during the 3-5 second LLM processing time
+                btn.innerText = 'Scanning ID...';
+                btn.style.pointerEvents = 'none';
+                btn.style.opacity = '0.7';
+
+                fetch('/api/crm/contact/auto-create/', { 
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.contact_id) {
+                        // Success! Refresh the page to see the new contact
+                        window.location.reload();
+                    } else {
+                        alert('Extraction Error: ' + data.error);
+                        resetBtn();
+                    }
+                })
+                .catch(err => {
+                    alert('Network error during upload: ' + err);
+                    resetBtn();
+                });
+
+                function resetBtn() {
+                    btn.innerText = 'Upload KYC ID';
+                    btn.style.pointerEvents = 'auto';
+                    btn.style.opacity = '1';
+                    fileInput.value = '';
+                }
+            });
+        });
+    </script>
+{% endblock %}

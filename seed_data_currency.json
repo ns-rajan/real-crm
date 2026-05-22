@@ -1,0 +1,48 @@
+[
+    {
+      "model": "common.department", "pk": 1,
+      "fields": { "name": "European Sales", "works_globally": true }
+    },
+    {
+      "model": "crm.currency", "pk": 1,
+      "fields": {
+        "name": "EUR",
+        "rate_to_state_currency": "1.0",
+        "rate_to_marketing_currency": "1.0",
+        "is_state_currency": true,
+        "is_marketing_currency": false,
+        "auto_update": true
+      }
+    },
+    {
+      "model": "crm.currency", "pk": 2,
+      "fields": {
+        "name": "USD",
+        "rate_to_state_currency": "1.1",
+        "rate_to_marketing_currency": "1.1",
+        "is_state_currency": false,
+        "is_marketing_currency": true,
+        "auto_update": true
+      }
+    },
+    {
+      "model": "crm.stage", "pk": 1,
+      "fields": { "name": "1 - New Request", "default": true, "success_stage": false, "department": 1, "index_number": 1 }
+    },
+    {
+      "model": "crm.stage", "pk": 2,
+      "fields": { "name": "2 - Negotiation", "default": false, "success_stage": false, "department": 1, "index_number": 2 }
+    },
+    {
+      "model": "crm.stage", "pk": 3,
+      "fields": { "name": "3 - Closed Won", "default": false, "success_stage": true, "department": 1, "index_number": 3 }
+    },
+    {
+      "model": "crm.closingreason", "pk": 1,
+      "fields": { "name": "Contract Signed", "success_reason": true, "department": 1, "index_number": 1 }
+    },
+    {
+      "model": "crm.leadsource", "pk": 1,
+      "fields": { "name": "Website Lead", "department": 1 }
+    }
+  ]

@@ -8,6 +8,11 @@ from common.settings import *       # NOQA
 from tasks.settings import *        # NOQA
 from voip.settings import *         # NOQA
 from .datetime_settings import *    # NOQA
+import os
+from dotenv import load_dotenv
+from urllib.parse import urlparse, parse_qsl
+
+load_dotenv()
 
 # ---- Django settings ---- #
 
@@ -23,85 +28,39 @@ SECRET_KEY = 'j1c=6$s-dh#$ywt@(q4cm=j&0c*!0x!e-qm6k1%yoliec(15tn'
 # Add your hosts to the list.
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
-# Database
+# ---- Django Tenants Configuration ---- #
+TENANT_MODEL = "customers.Client"
+TENANT_DOMAIN_MODEL = "customers.Domain"
+DATABASE_ROUTERS = ('django_tenants.routers.TenantSyncRouter',)
+
+# Replace the DATABASES section of your settings.py with this
+tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
+
 DATABASES = {
     'default': {
-        # for SQLite3
-        'ENGINE': 'django.db.backends.sqlite3',
-
-        # for MySQl
-        #'ENGINE': 'django.db.backends.mysql',
-        #'PORT': '3306',
-
-        # for PostgreSQL
-        # "ENGINE": "django.db.backends.postgresql",
-        # 'PORT': '5432',
-
-        'NAME': 'crm_db',
-        'USER': 'crm_user',
-        'PASSWORD': 'crmpass',
-        'HOST': 'localhost',
+        'ENGINE': 'django_tenants.postgresql_backend',
+        'NAME': tmpPostgres.path.replace('/', ''),
+        'USER': tmpPostgres.username,
+        'PASSWORD': tmpPostgres.password,
+        'HOST': tmpPostgres.hostname,
+        'PORT': 5432,
+        'CONN_MAX_AGE': 600,  # Persist connections for 10 mins to avoid Neon DB cold starts
+        'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
     }
 }
 
-EMAIL_HOST = '<specify host>'   # 'smtp.example.com'
-EMAIL_HOST_PASSWORD = '<specify password>'
-EMAIL_HOST_USER = 'crm@example.com'
-EMAIL_PORT = 587
-EMAIL_SUBJECT_PREFIX = 'CRM: '
-EMAIL_USE_TLS = True
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'crm-cache',
+    }
+}
 
-SERVER_EMAIL = 'test@example.com'
-DEFAULT_FROM_EMAIL = 'test@example.com'
-
-ADMINS = [("<Admin1>", "<admin1_box@example.com>")]   # specify admin
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-FORMS_URLFIELD_ASSUME_HTTPS = True
-
-# Internationalization
-LANGUAGE_CODE = 'en'
-LANGUAGES = [
-    ('ar', 'Arabic'),
-    ('cs', 'Czech'),
-    ('de', 'German'),
-    ('el', 'Greek'),
-    ('en', 'English'),
-    ('es', 'Spanish'),
-    ('fr', 'French'),
-    ('he', 'Hebrew'),
-    ('hi', 'Hindi'),
-    ('id', 'Indonesian'),
-    ('it', 'Italian'),
-    ('ja', 'Japanese'),
-    ('ko', 'Korean'),
-    ('nl', 'Nederlands'),
-    ('pl', 'Polish'),
-    ('pt-br', 'Portuguese'),    # pt_BR
-    ('ro', 'Romanian'),
-    ('ru', 'Russian'),
-    ('tr', 'Turkish'),
-    ('uk', 'Ukrainian'),
-    ('vi', 'Vietnamese'),
-    ('zh-hans', 'Chinese'),
-]
-
-TIME_ZONE = 'UTC'   # specify your time zone
-
-USE_I18N = True
-
-USE_TZ = True
-
-LOCALE_PATHS = [
-    BASE_DIR / 'locale',
-]
-
-LOGIN_URL = '/admin/login/'
-
-# Application definition
-INSTALLED_APPS = [
+SHARED_APPS = [
+    'django_tenants',  # MUST BE FIRST
+    'rest_framework',
+    'customers',       # Our new tenant routing app
+    'urbaty',   
     'django.contrib.sites',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -109,6 +68,18 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+]
+
+TENANT_APPS = [
+    'django.contrib.sites',
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'hijack',
+    'hijack.contrib.admin',
     'crm.apps.CrmConfig',
     'massmail.apps.MassmailConfig',
     'analytics.apps.AnalyticsConfig',
@@ -118,23 +89,38 @@ INSTALLED_APPS = [
     'voip',
     'common.apps.CommonConfig',
     'settings',
-    'quality'
+    'quality',
+    'tenants',
+    'inventory',
+    'locations',
+    'leasing',
+    'kyc',
 ]
 
+INSTALLED_APPS = list(SHARED_APPS) + [app for app in TENANT_APPS if app not in SHARED_APPS]
+
 MIDDLEWARE = [
+    'django_tenants.middleware.main.TenantMainMiddleware', # MUST BE FIRST
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'hijack.middleware.HijackUserMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'common.utils.admin_redirect_middleware.AdminRedirectMiddleware',
-    'common.utils.usermiddleware.UserMiddleware'
+    'common.utils.usermiddleware.UserMiddleware',
+    # 'crm.middleware.NeonColdStartMiddleware',
 ]
 
 ROOT_URLCONF = 'webcrm.urls'
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = True
+
+# Allow all hosts for local tenant testing
+ALLOWED_HOSTS = ['*']
 
 TEMPLATES = [
     {
@@ -211,7 +197,7 @@ NOT_ALLOWED_EMAILS = []
 # List of applications on the main page and in the left sidebar.
 APP_ON_INDEX_PAGE = [
     'tasks', 'crm', 'analytics',
-    'massmail', 'common', 'settings'
+    'massmail', 'common', 'settings', 'tenants', 'inventory', 'locations','leasing','customers',
 ]
 MODEL_ON_INDEX_PAGE = {
     'tasks': {
@@ -219,7 +205,7 @@ MODEL_ON_INDEX_PAGE = {
     },
     'crm': {
         'app_model_list': [
-            'Request', 'Deal', 'Lead', 'Company',
+            'Agency', 'Company', 'Contact', 'Request', 'Deal',
             'CrmEmail', 'Payment', 'Shipment'
         ]
     },
@@ -242,7 +228,33 @@ MODEL_ON_INDEX_PAGE = {
         'app_model_list': [
             'PublicEmailDomain', 'StopPhrase'
         ]
-    }
+    },
+
+    'tenants': {
+        'app_model_list': [
+            'Agency'
+        ]
+    },
+    'inventory': {
+        'app_model_list': [
+            'Asset', 'Space', 'Unit'
+        ]
+    },
+    'locations': {
+        'app_model_list': [
+            'Country', 'City'
+        ]
+    },
+    'leasing': {
+        'app_model_list': [
+            'Lead', 'Reservation', 'Lease' # Epic 3 & 12 Models
+        ]
+    },
+    'customers': {
+        'app_model_list': [
+            'Client', 'Domain'
+        ]
+    },   
 }
 
 # Country VAT value
@@ -313,3 +325,9 @@ if TESTING:
     SECURE_SSL_REDIRECT = False
     LANGUAGE_CODE = 'en'
     LANGUAGES = [('en', ''), ('uk', '')]
+
+
+# django-hijack
+HIJACK_ALLOW_GET_REQUESTS = True
+LOGIN_REDIRECT_URL = '/en/456-admin/'
+HIJACK_LOGIN_REDIRECT_URL = '/en/456-admin/'

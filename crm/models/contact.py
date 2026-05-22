@@ -1,6 +1,7 @@
 from django.db import models
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
+from django.conf import settings
 
 from common.models import Base1
 from crm.models.base_contact import BaseContact
@@ -18,6 +19,14 @@ class Contact(BaseCounterparty, BaseContact, Base1):
         related_name="contacts",
         verbose_name=_("Company of contact")
     )
+
+    # Extra fields for KYC
+    id_number = models.CharField(max_length=50, blank=True, null=True, unique=True)
+    id_expiry = models.DateField(blank=True, null=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    # Regulatory
+    kyc_verified = models.BooleanField(default=False)
+    consent_timestamp = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     @property
     def company_country(self):

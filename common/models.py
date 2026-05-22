@@ -319,6 +319,13 @@ class UserProfile(models.Model):
         max_length=7, default='',
         null=False, blank=True,
     )
+    agency = models.ForeignKey(
+        'tenants.Agency',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='users',
+    )
 
     def __str__(self):
         return f"{self.user.first_name} {self.user.last_name} ({self.user})"    # NOQA

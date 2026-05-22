@@ -116,7 +116,7 @@ class RequestAdmin(CrmModelAdmin):
                 ('country', 'city_name'),
                 ('description', 'translation'),
                 'remark',
-                'products'
+                'products',
             ]
         }),
         (_('Relations'), {
@@ -144,6 +144,7 @@ class RequestAdmin(CrmModelAdmin):
         ('products', ScrollRelatedOnlyFieldListFilter),
         'subsequent'
     ]
+
     list_per_page = 30
     raw_id_fields = ('lead', 'contact', 'company', 'deal')
     readonly_fields = (
@@ -162,6 +163,24 @@ class RequestAdmin(CrmModelAdmin):
     ]
 
     # -- ModelAdmin Methods -- #
+
+    def get_queryset(self, request):
+        from django.contrib import admin as dj_admin  # local import to avoid cycles
+        # Start from the base ModelAdmin queryset to avoid extra scoping
+        qs = dj_admin.ModelAdmin.get_queryset(self, request)
+        
+        # Superusers see everything
+        if request.user.is_superuser:
+            return qs
+            
+        # Safely extract the agency
+        profile = getattr(request.user, 'profile', getattr(request.user, 'userprofile', None))
+        agency = getattr(profile, 'agency', None) if profile else None
+        
+        # Filter by agency, or return nothing if they don't have one
+        if agency:
+            return qs.filter(agency=agency)
+        return qs.none()
 
     def change_view(self, request, object_id,
                     form_url='', extra_context=None):
@@ -193,22 +212,27 @@ class RequestAdmin(CrmModelAdmin):
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
-        
+
         if obj and getattr(obj, "deal", None):
             if "duplicate" in form.base_fields:
                 form.base_fields["duplicate"].widget = HiddenInput()
             if "case" in form.base_fields:
                 form.base_fields["case"].widget = HiddenInput()
 
-        if request.method == "POST" and '_create-deal' in request.POST:
-            department_id = request.user.department_id
-            works_globally = Department.objects.get(
-                id=department_id
-            ).works_globally
+        if request.method == "POST" and "_create-deal" in request.POST:
+            department_id = getattr(request.user, "department_id", None)
+            works_globally = False
+
+            if department_id:
+                dept = Department.objects.filter(id=department_id).first()
+                if dept:
+                    works_globally = dept.works_globally
+
             if works_globally:
                 form.country_must_be_specified = True
 
         return form
+
 
     def get_changeform_initial_data(self, request):
         initial = super().get_changeform_initial_data(request)
@@ -317,7 +341,8 @@ class RequestAdmin(CrmModelAdmin):
         if not obj.pending:
             _update_request_email(obj)
 
-            if not obj.country and obj.department.department.works_globally:
+            # `obj.department` is a Department(Group) instance in this project.
+            if not obj.country and obj.department and obj.department.works_globally:
                 link = f'<a href="{obj.get_absolute_url()}">{obj.request_for}.</a>'
                 messages.warning(
                     request, mark_safe(f'{country_not_specified}: "{link}"')
@@ -535,10 +560,16 @@ def _get_or_create_deal(obj: Request, request: WSGIRequest) -> Deal:
         date = get_formatted_short_date()
         msg = _('Request')
         department_id = get_department_id(obj.owner)
+        
+        # FIX 1: Safe fallback for Stage
         stage = Stage.objects.filter(
             department_id=department_id,
             default=True
         ).first()
+        if not stage:
+            stage = Stage.objects.first() # Ultimate fallback to prevent crash
+
+        # FIX 2: Create the Deal with safe fallback values
         deal = Deal(
             name=obj.request_for,
             request=obj,
@@ -551,44 +582,57 @@ def _get_or_create_deal(obj: Request, request: WSGIRequest) -> Deal:
             owner=obj.owner,
             co_owner=obj.co_owner,
             stages_dates=f'{date} - {stage}\n',
-            workflow=f'{date} - {msg}\n'
+            workflow=f'{date} - {msg}\n',
+            agency=obj.agency,     # FIX 4: Push the multi-tenant link forward
         )
-        if request.user.department_id:  # NOQA
-            deal.currency_id = Department.objects.get(
-                id=request.user.department_id  # NOQA
-            ).default_currency_id
-        else:
-            deal.currency_id = Currency.objects.get(
-                is_state_currency=True
-            ).id
+
+        # FIX 5: Safe fallback for Currency
+        if getattr(request.user, 'department_id', None):
+            dept = Department.objects.filter(id=request.user.department_id).first()
+            if dept and dept.default_currency_id:
+                deal.currency_id = dept.default_currency_id
+        
+        if not deal.currency_id:
+            currency = Currency.objects.filter(is_state_currency=True).first()
+            if currency:
+                deal.currency_id = currency.id
+            else:
+                # Ultimate fallback: just pick the first currency or leave it blank
+                fallback_currency = Currency.objects.first()
+                if fallback_currency:
+                    deal.currency_id = fallback_currency.id
+
         if obj.contact:
             deal.contact = obj.contact
             deal.company = obj.contact.company
             if deal.company:
                 deal.country = deal.company.country
                 deal.city = deal.company.city
-        else:
+        elif obj.lead:
             deal.lead = obj.lead
-            if deal.lead:
-                deal.country = deal.lead.country
-                deal.city = deal.lead.city
+            deal.country = obj.lead.country
+            deal.city = obj.lead.city
+            
         deal.save()
         copy_files(obj, deal)
-        for product in obj.products.all():
-            Output.objects.create(
-                deal=deal,
-                product=product,
-                quantity=1
-            )
+        
+        # Safely copy products if they exist
+        if hasattr(obj, 'products') and obj.products.exists():
+            for product in obj.products.all():
+                Output.objects.create(
+                    deal=deal,
+                    product=product,
+                    quantity=1
+                )
 
         deal_url = deal.get_absolute_url()
         msg_dict = {
             "name": deal._meta.verbose_name,
             "obj": format_html('<a href="{}">{}</a>', deal_url, deal),
         }
-        msg = _("The {name} “{obj}” was added successfully.")
+        msg_template = _("The {name} “{obj}” was added successfully.")
         messages.success(
-            request, format_html(msg, **msg_dict)
+            request, format_html(msg_template, **msg_dict)
         )
     return deal
 

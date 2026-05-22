@@ -1,0 +1,47 @@
+[
+    {
+      "model": "locations.country",
+      "pk": 1,
+      "fields": { "name": "Portugal", "code": "PT" }
+    },
+    {
+      "model": "locations.country",
+      "pk": 2,
+      "fields": { "name": "Spain", "code": "ES" }
+    },
+    {
+      "model": "locations.country",
+      "pk": 3,
+      "fields": { "name": "Italy", "code": "IT" }
+    },
+    {
+      "model": "locations.city",
+      "pk": 1,
+      "fields": { "name": "Lisbon", "country": 1 }
+    },
+    {
+      "model": "locations.city",
+      "pk": 2,
+      "fields": { "name": "Porto", "country": 1 }
+    },
+    {
+      "model": "locations.city",
+      "pk": 3,
+      "fields": { "name": "Madrid", "country": 2 }
+    },
+    {
+      "model": "locations.city",
+      "pk": 4,
+      "fields": { "name": "Barcelona", "country": 2 }
+    },
+    {
+      "model": "locations.city",
+      "pk": 5,
+      "fields": { "name": "Rome", "country": 3 }
+    },
+    {
+      "model": "locations.city",
+      "pk": 6,
+      "fields": { "name": "Milan", "country": 3 }
+    }
+  ]

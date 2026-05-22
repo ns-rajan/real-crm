@@ -65,8 +65,10 @@ class UserProfileAdmin(admin.ModelAdmin):
         )
 
     def get_fields(self, request, obj=None):
+        # Start with a safe default list of fields for all users.
+        fields = list(self.fields)
         if request.user.is_superuser:
-            fields = [*self.fields, 'is_active']
+            fields = [*fields, 'is_active']
         return fields
 
     def get_form(self, request, obj=None, **kwargs):

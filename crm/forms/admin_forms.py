@@ -209,12 +209,9 @@ class DealForm(BaseCallablesForm):
         closing_reason = self.cleaned_data.get("closing_reason")
         amount = self.cleaned_data.get("amount")
         if closing_reason and not amount:
-            department = self.instance.department
-            cr = ClosingReason.objects.get(
-                success_reason=True,
-                department=department
-            )
-            if closing_reason == cr:
+            # Don't hard-require a specific "success" ClosingReason record to exist.
+            # Use the flag on the selected reason instead.
+            if getattr(closing_reason, "success_reason", False):
                 raise forms.ValidationError({
                     NON_FIELD_ERRORS: _("Specify the deal amount"),
                     'amount': _("Specify the deal amount"),

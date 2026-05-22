@@ -1,0 +1,33 @@
+ Volume in drive F is SSD1T
+ Volume Serial Number is D403-BD51
+
+ Directory of F:\SMAPP\real-crm
+
+[.]                            [..]
+.env                           [.github]
+.gitignore                     .readthedocs.yaml
+[analytics]                    apps.py
+CHANGELOG.md                   [chat]
+[common]                       CONTRIBUTING.md
+[crm]                          crm_db
+[customers]                    [docs]
+files.txt                      FullFilePaths.txt
+[help]                         [inventory]
+[kyc]                          [leasing]
+LICENSE                        [locale]
+[locations]                    locations_seed.json
+manage.py                      MANIFEST.in
+[massmail]                     [media]
+mkdocs.yml                     models.py
+pyproject.toml                 [quality]
+README.md                      real-crm-VSWS.code-workspace
+requirements.txt               seed_data.json
+seed_data_currency.json        [settings]
+setup.cfg                      [static]
+[tasks]                        [templates]
+[tenants]                      [tests]
+[test_docs]                    [venv]
+[voip]                         [webcrm]
+__init__.py                    [__pycache__]
+              23 File(s)      3,291,471 bytes
+              29 Dir(s)  525,657,370,624 bytes free

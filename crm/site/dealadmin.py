@@ -136,6 +136,24 @@ class DealAdmin(CrmModelAdmin):
 
     # -- ModelAdmin methods -- #
 
+    def get_queryset(self, request):
+        from django.contrib import admin as dj_admin  # local import to avoid cycles
+        # Start from the base ModelAdmin queryset to avoid extra scoping
+        qs = dj_admin.ModelAdmin.get_queryset(self, request)
+        
+        # Superusers see everything
+        if request.user.is_superuser:
+            return qs
+            
+        # Safely extract the agency
+        profile = getattr(request.user, 'profile', getattr(request.user, 'userprofile', None))
+        agency = getattr(profile, 'agency', None) if profile else None
+        
+        # Filter by agency, or return nothing if they don't have one
+        if agency:
+            return qs.filter(agency=agency)
+        return qs.none()
+
     def _create_formsets(self, request, obj, change):
         formsets, inline_instances = super()._create_formsets(request, obj, change)
         p = Payment.objects.filter(deal=obj).last()
@@ -226,8 +244,8 @@ class DealAdmin(CrmModelAdmin):
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "stage":
             kwargs["empty_label"] = None
-            if db_field.name == 'currency':
-                set_currency_initial(request, kwargs)
+        if db_field.name == "currency":
+            set_currency_initial(request, kwargs)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def get_changelist_instance(self, request):
@@ -340,7 +358,7 @@ class DealAdmin(CrmModelAdmin):
                 'fields': (
                     'contact', 'company',
                     'lead', 'partner_contact',
-                    'request'
+                    'request', 
                 )
             }),
             (_('Additional information'), {
@@ -357,7 +375,7 @@ class DealAdmin(CrmModelAdmin):
         list_display = [
             'dynamic_name', 'attachment', 'marks',
             'next_step_name', 'coloured_next_step_date',
-            'stage', 'counterparty']
+            'stage', 'closing_reason', 'counterparty']
         if not any(('company' in request.GET, 'lead' in request.GET)):
             list_display.append('deal_counter')
         if not (request.user.is_manager and 'owner' not in request.GET):
@@ -424,10 +442,10 @@ class DealAdmin(CrmModelAdmin):
             use_l10n=True
         )
         if not obj.stage:
-            obj.stage = Stage.objects.get(
+            obj.stage = Stage.objects.filter(
                 default=True,
                 department=obj.department
-            )
+            ).first()
         if 'next_step' in form.changed_data:
             if request.user != obj.owner:
                 next_step = obj.next_step + f' ({request.user.username})'
@@ -443,14 +461,11 @@ class DealAdmin(CrmModelAdmin):
             obj.active = not bool(obj.closing_reason)
             if obj.closing_reason:
                 obj.closing_date = today
-                if obj.closing_reason == ClosingReason.objects.get(
-                        success_reason=True,
-                        department=obj.department
-                ):
-                    obj.stage = Stage.objects.get(
+                if getattr(obj.closing_reason, "success_reason", False):
+                    obj.stage = Stage.objects.filter(
                         success_stage=True,
                         department=obj.department
-                    )
+                    ).first()
                     obj.change_stage_data(formatted_today)
                     obj.win_closing_date = now
             else:
@@ -478,10 +493,11 @@ class DealAdmin(CrmModelAdmin):
                 obj.lead.owner = obj.owner
                 obj.lead.save()
         if change:
-            if obj.stage and obj.stage == Stage.objects.get(
-                    default=True,
-                    department=obj.department
-            ):
+            default_stage = Stage.objects.filter(
+                default=True,
+                department=obj.department
+            ).first()
+            if obj.stage and default_stage and obj.stage == default_stage:
                 second_default_stage = Stage.objects.filter(
                     second_default=True,
                     department=obj.department

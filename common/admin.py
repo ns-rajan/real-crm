@@ -212,7 +212,7 @@ class FileInline(GenericStackedInline):
 
 
 class UserProfileAdmin(userprofileadmin.UserProfileAdmin):
-    fields = ('user', 'pbx_number', 'utc_timezone', 'activate_timezone')
+    fields = ('user', 'pbx_number', 'utc_timezone', 'activate_timezone', 'agency')
 
     # -- ModelAdmin methods -- #
 

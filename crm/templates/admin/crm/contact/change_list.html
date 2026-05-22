@@ -1,0 +1,90 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    <li>
+        <input type="file" id="kyc-file-input" accept="image/*,application/pdf" style="display: none;" />
+        <label for="kyc-file-input" class="addlink" style="cursor: pointer; margin-left: 15px;">
+            AI KYC ONBOARD
+        </label>
+        <div id="kyc-confirm-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
+            <div style="background: white; padding: 20px; border-radius: 8px; max-width: 400px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h3 style="margin-top: 0; color: #333;">Duplicate Contact Found</h3>
+                <p id="kyc-confirm-msg" style="margin-bottom: 20px; color: #555; line-height: 1.5;"></p>
+                <button id="kyc-confirm-yes" style="background: #4caf50; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; margin-right: 10px; font-weight: bold;">Update Existing</button>
+                <button id="kyc-confirm-no" style="background: #f44336; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; font-weight: bold;">Cancel</button>
+            </div>
+        </div>
+        <script>
+            let currentKYCFile = null;
+            
+            async function uploadKYCDocument(file, mode = 'create') {
+                const formData = new FormData();
+                formData.append('document', file);
+                formData.append('mode', mode);
+            
+                try {
+                    // Update cursor to indicate processing
+                    document.body.style.cursor = 'wait';
+                    
+                    const endpointUrl = "{% url 'kyc_auto_onboard' %}";
+                    const response = await fetch(endpointUrl, { 
+                        method: 'POST',
+                        body: formData
+                    });
+            
+                    let data = {};
+                    try {
+                        data = await response.json();
+                        console.log("KYC Response payload:", data);
+                    } catch(e) {
+                        console.error("Failed to parse JSON response", e);
+                    }
+            
+                    if (response.status === 409) {
+                        document.body.style.cursor = 'default';
+                        currentKYCFile = file;
+                        document.getElementById('kyc-confirm-msg').innerText = `${data.message || "ID Exists"}\n\nThis ID is already linked to: ${data.contact_name || "an existing contact"}.\n\nWould you like to update their existing record with this document?`;
+                        document.getElementById('kyc-confirm-modal').style.display = 'flex';
+                        return;
+                    }
+            
+                    if (response.ok) {
+                        window.location.reload(); // Reload table to show new entry
+                    } else {
+                        alert(`Error: ${data.error || "Upload failed."}`);
+                    }
+                } catch (error) {
+                    console.error("KYC Upload Error:", error);
+                    alert("A network error occurred while uploading the document.");
+                } finally {
+                    document.body.style.cursor = 'default';
+                }
+            }
+
+            document.getElementById('kyc-confirm-yes').addEventListener('click', async function() {
+                document.getElementById('kyc-confirm-modal').style.display = 'none';
+                if (currentKYCFile) {
+                    await uploadKYCDocument(currentKYCFile, 'update');
+                    currentKYCFile = null;
+                }
+            });
+
+            document.getElementById('kyc-confirm-no').addEventListener('click', function() {
+                document.getElementById('kyc-confirm-modal').style.display = 'none';
+                currentKYCFile = null;
+            });
+
+            document.getElementById('kyc-file-input').addEventListener('change', async function(e) {
+                try {
+                    if (e.target.files.length > 0) {
+                        await uploadKYCDocument(e.target.files[0], 'create');
+                    }
+                } finally {
+                    e.target.value = "";
+                }
+            });
+        </script>
+    </li>
+{% endblock %}

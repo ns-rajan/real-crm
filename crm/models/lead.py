@@ -57,6 +57,14 @@ class Lead(BaseCounterparty, BaseContact, Base1):
         verbose_name=_("Company of contact")
     )
 
+    agency = models.ForeignKey(
+        "tenants.Agency",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        verbose_name="Agency/Tenant"
+    )
+
     def __str__(self):
         if self.company_name:
             return f"{self.full_name}, {self.company_name}," \

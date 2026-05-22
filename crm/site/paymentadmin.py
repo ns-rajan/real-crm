@@ -266,12 +266,24 @@ class PaymentAdmin(admin.ModelAdmin):
 # -- Custom Methods -- #
 
 
-def set_currency_initial(request, initial, **kwargs) -> None:
-    if request.user.department_id:
-        initial = Department.objects.get(
-            id=request.user.department_id
-        ).default_currency_id                
+def set_currency_initial(request, kwargs) -> None:
+    """
+    Set the initial currency for admin forms/inlines.
+
+    Callers pass the `**kwargs` dict from `formfield_for_foreignkey`, so we
+    mutate `kwargs["initial"]` in-place.
+    """
+    initial = None
+
+    department_id = getattr(request.user, "department_id", None)
+    if department_id:
+        dept = Department.objects.filter(id=department_id).only("default_currency_id").first()
+        if dept and dept.default_currency_id:
+            initial = dept.default_currency_id
     else:
-        initial = Currency.objects.get(
-            is_state_currency=True
-        ).id
+        state_currency = Currency.objects.filter(is_state_currency=True).only("id").first()
+        if state_currency:
+            initial = state_currency.id
+
+    if initial is not None:
+        kwargs["initial"] = initial

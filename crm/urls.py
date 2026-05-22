@@ -4,6 +4,8 @@ from django.contrib.admin.views.decorators import staff_member_required
 from crm.site.crmadminsite import crm_site
 from django.urls import path, include
 from django.views.generic.detail import DetailView
+from django.conf import settings
+from django.conf.urls.static import static
 
 from common.views.export_objects import export_objects_view
 from crm.views.create_email import create_email
@@ -16,6 +18,7 @@ from crm.views.got_massmails import got_contacts_massmails
 from crm.views.got_massmails import got_leads_massmails
 from crm.views.view_original_email import view_original_email
 from crm.views.change_owner_companies import change_owner_companies
+from crm.views.kyc_views import auto_create_contact_view
 
 
 urlpatterns = [
@@ -91,4 +94,5 @@ urlpatterns = [
         staff_member_required(download_original_email),
         name='download_original_email'
     ),
-]
+    path('kyc/auto-onboard/', auto_create_contact_view, name='kyc_auto_onboard'),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

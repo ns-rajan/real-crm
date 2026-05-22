@@ -163,6 +163,39 @@ class CrmModelAdmin(BaseModelAdmin):
             )
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
+    def get_queryset(self, request):
+        """
+        Apply tenant isolation for models that have an `agency` field.
+
+        Superusers and superoperators see all records; other users only see
+        rows where `agency` matches the user's profile. Models without an
+        `agency` field are left unchanged.
+        """
+        qs = super().get_queryset(request)
+
+        if request.user.is_superuser or getattr(request.user, "is_superoperator", False):
+            return qs
+
+        # Only enforce agency scoping on models that actually have an `agency` FK
+        if not any(f.name == "agency" for f in self.model._meta.get_fields()):
+            return qs
+
+        # Support both `user.profile` and legacy `user.userprofile` relations.
+        print("--- SECURITY DEBUG ---")
+        print(f"User: {request.user} | Is Superuser: {request.user.is_superuser}")
+        profile = getattr(request.user, "profile", getattr(request.user, "userprofile", None))
+        print(f"Profile Found: {profile}")
+        if profile:
+            print(f"Agency Found on Profile: {getattr(profile, 'agency', 'No Agency Field')}")
+        else:
+            print("Agency Found on Profile: None")
+
+        agency = getattr(profile, "agency", None) if profile else None
+        if not agency:
+            return qs.none()
+
+        return qs.filter(agency=agency)
+
     def get_actions(self, request):
         actions = super().get_actions(request)
         if self.model in (Contact, Company, Lead, Deal):
@@ -173,8 +206,14 @@ class CrmModelAdmin(BaseModelAdmin):
     def get_changeform_initial_data(self, request):
         initial = super().get_changeform_initial_data(request)
         initial['owner'] = request.user.id
-        if hasattr(self.model, 'country') and 'country' not in initial and \
-                request.user.department_id:
+        # Only set a default crm.Country for models that actually use it;
+        # Deal/Request now use locations.Country.
+        if (
+            hasattr(self.model, 'country')
+            and self.model.__name__ not in ('Deal', 'Request')
+            and 'country' not in initial
+            and request.user.department_id
+        ):
             initial['country'] = Department.objects.get(
                 id=request.user.department_id
             ).default_country_id
@@ -188,6 +227,21 @@ class CrmModelAdmin(BaseModelAdmin):
                 icon = subscribed_icon.format(subscribed_title)
                 form.base_fields['massmail'].label = mark_safe(f"{label} {icon}")   
         return form
+
+    def save_model(self, request, obj, form, change):
+        """
+        On create/update, if the model has an `agency` field and it's empty,
+        automatically assign it from `request.user.profile.agency` for
+        non-superusers.
+        """
+        if not request.user.is_superuser:
+            if any(f.name == "agency" for f in obj._meta.get_fields()):
+                if getattr(obj, "agency_id", None) is None:
+                    profile = getattr(request.user, "profile", None)
+                    agency = getattr(profile, "agency", None) if profile else None
+                    if agency is not None:
+                        obj.agency = agency
+        super().save_model(request, obj, form, change)
 
     def get_list_display(self, request):
         if self.model in (Request, Company, Contact, Lead):

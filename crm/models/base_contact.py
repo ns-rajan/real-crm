@@ -107,6 +107,7 @@ class BaseCounterparty(models.Model):
 
     address = models.TextField(
         blank=True,
+        null=True,
         default='',
         verbose_name=_("Address")
     )

@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.utils import timezone
 from django.utils.safestring import mark_safe
 from django.utils.translation import get_language
+from django.db import connection
 
 from common.models import UserProfile
 
@@ -15,16 +16,19 @@ class UserMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        if request.user.is_authenticated:
-            profile = getattr(request.user, 'profile', None)
-            groups = request.user.groups.all()      
-            set_user_timezone(profile)
-            set_user_groups(request, groups)
-            set_user_department(request, groups)
-            iem = apps.get_app_config('crm')
-            iem.import_emails(request.user)
-            activate_stored_messages_to_user(request, profile)
-            check_user_language(profile)
+        if request.user.is_authenticated and connection.schema_name != 'public':
+            try:
+                profile = getattr(request.user, 'profile', None)
+                groups = request.user.groups.all()      
+                set_user_timezone(profile)
+                set_user_groups(request, groups)
+                set_user_department(request, groups)
+                iem = apps.get_app_config('crm')
+                iem.import_emails(request.user)
+                activate_stored_messages_to_user(request, profile)
+                check_user_language(profile)
+            except:
+                pass
         return self.get_response(request)
 
 
